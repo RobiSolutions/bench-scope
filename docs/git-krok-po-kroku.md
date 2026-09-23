@@ -409,24 +409,134 @@ zakładać nowego PR-a. Tak trafiła na GitHub ta aktualizacja dziennika.
 
 ---
 
-## Krok 5 ⏳ - pull request
+## Krok 5 ✅ - pierwszy pull request (#1)
+
+### 5.1 Otwarcie PR-a (w przeglądarce)
 
 1. Otwórz link z kroku 4.3 (albo na stronie repo kliknij żółty pasek
    **Compare & pull request**).
 2. Sprawdź kierunek: **base: `main`** ← **compare: `feat/instrument`**.
-3. Tytuł i opis: co wchodzi i jak to sprawdzić.
-4. **Create pull request.**
-5. Zakładka **Files changed**: przeczytaj własny diff jak recenzent. To
-   jest właściwa lekcja tego kroku.
-6. **Merge pull request** → **Confirm merge**.
-7. Po merge'u, lokalnie:
+   Strzałka pokazuje, dokąd płyną zmiany: z gałęzi do `main`.
+3. **Tytuł:** co wchodzi (`Stage 1: the instrument`). **Opis:** lista
+   zmian i **jak to sprawdzić** (polecenia i co kliknąć). Opis PR-a czyta
+   ktoś, kto nie siedział z tobą przy kodzie, łącznie z tobą za pół roku.
+4. **Create pull request.** PR dostaje numer (`#1`), który zostaje na
+   zawsze, razem z dyskusją i diffem.
 
-   ```
-   $ git switch main
-   $ git pull
-   $ git branch -d feat/instrument          # usuwa gałąź lokalnie
-   $ git push origin --delete feat/instrument   # i na GitHubie (albo przycisk „Delete branch”)
-   ```
+### 5.2 Przeczytaj własny diff
+
+Zakładka **Files changed**: każdy zmieniony plik, na zielono linie dodane,
+na czerwono usunięte. Czytaj jak recenzent:
+
+- czy nie wpadło nic przypadkowego (pliki tymczasowe, logi, `.env`);
+- czy każda zmiana pasuje do tytułu PR-a;
+- czy nie zostało nic „na chwilę” (zakomentowany kod, `console.log`).
+
+Kliknięcie **+** przy linii pozwala dodać komentarz, nawet we własnym PR-ze
+(notatka dla siebie albo pytanie).
+
+### 5.3 Merge (w przeglądarce)
+
+Przycisk **Merge pull request** ma strzałkę ▾ z trzema sposobami:
+
+| opcja | co robi z commitami gałęzi | kiedy |
+|---|---|---|
+| **Create a merge commit** | zostawia wszystkie i dodaje commit „Merge pull request #N” | chcesz zachować pełną historię pracy |
+| **Squash and merge** | zgniata wszystkie w jeden nowy commit | gałąź ma dużo drobnych „fix”, „wip” |
+| **Rebase and merge** | dokleja je na koniec `main` z nowymi hashami | chcesz liniowej historii bez commita merge |
+
+Tu użyto **Create a merge commit** → **Confirm merge**, potem przycisk
+**Delete branch** (usuwa gałąź na GitHubie; PR zachowuje jej historię).
+
+### 5.4 Ściągnięcie merge'a do siebie
+
+Merge powstał na GitHubie, więc lokalny `main` jeszcze go nie ma:
+
+```
+$ git switch main
+Switched to branch 'main'
+Your branch is up to date with 'origin/main'.
+```
+
+> **Pułapka:** „up to date” **kłamie**. Git porównuje się z tym, co
+> **ostatnio pobrał** z GitHuba, nie z tym, co jest tam teraz. O merge'u
+> jeszcze nie wie. `git fetch` (albo `pull`) odświeża tę wiedzę.
+
+```
+$ git pull
+From github.com:RobiSolutions/bench-scope
+   76ed258..83be2a2  main       -> origin/main
+Updating 76ed258..83be2a2
+Fast-forward
+ README.md                        |   7 +-
+ docs/git-krok-po-kroku.md        | 445 +++++++++++++++++++++++++++++++++++++++
+ ...
+ 11 files changed, 1368 insertions(+), 3 deletions(-)
+```
+
+`Fast-forward` oznacza, że lokalny `main` nie miał nic własnego, więc Git
+tylko przesunął etykietę do przodu, bez łączenia czegokolwiek.
+
+### 5.5 Sprzątanie
+
+Gałąź lokalna (`-d` usuwa tylko gałąź już scaloną; niescaloną Git
+odmówi, i dobrze):
+
+```
+$ git branch -d feat/instrument
+Deleted branch feat/instrument (was df36d63).
+```
+
+Etykieta `origin/feat/instrument`: gałęzi na GitHubie już nie ma (przycisk
+Delete branch), ale lokalna kopia etykiety została. `--prune` ją usuwa:
+
+```
+$ git fetch --prune
+From github.com:RobiSolutions/bench-scope
+ - [deleted]         (none)     -> origin/feat/instrument
+```
+
+> Jeśli nie kliknąłeś Delete branch na GitHubie, usuń gałąź zdalną z
+> terminala: `git push origin --delete feat/instrument`.
+
+### 5.6 Sprawdzenie
+
+```
+$ git branch -a
+* main
+  remotes/origin/main
+
+$ git log --oneline --graph --all --decorate
+*   83be2a2 (HEAD -> main, origin/main) Merge pull request #1 from RobiSolutions/feat/instrument
+|\
+| * df36d63 Journal: the repository on GitHub and the first push
+| * ec50bdc A step-by-step git journal, in Polish
+| * fe07108 The instrument: a screen that holds a trace still
+|/
+* 76ed258 The core before the pixels: waveforms and a trigger that holds still
+
+$ npm test
+      Tests  36 passed (36)
+```
+
+Wykres pokazuje całą drogę: gałąź odeszła od `76ed258`, dostała trzy
+commity i wróciła przez commit merge `83be2a2`. Etykiety `feat/instrument`
+już nie ma, ale jej commity zostały w historii `main`.
+
+---
+
+## Krok 6 ⏳ - ta aktualizacja dziennika jako PR #2
+
+Od teraz nic nie trafia bezpośrednio do `main`, nawet dokumentacja:
+
+```
+$ git switch -c docs/journal-first-pr
+$ git add docs/git-krok-po-kroku.md
+$ git commit -m "Journal: the first pull request, merge and cleanup"
+$ git push -u origin docs/journal-first-pr
+```
+
+Dalej samodzielnie, według kroku 5: PR, diff, merge, `pull`, sprzątanie.
 
 ---
 
