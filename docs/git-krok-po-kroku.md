@@ -1407,6 +1407,87 @@ w historii, ale już niczego nie blokuje.
 Tym razem dziennik wchodzi razem z kodem: ten opis to trzeci commit na
 `feat/measurements`, dopisany po zielonym CI, a przed merge'em.
 
+### 9.7 Sprzątanie po PR #4: dwie gałęzie naraz
+
+Po squashu PR #4 do usunięcia były **dwie** gałęzie: `feat/measurements`
+i `docs/journal-pr3`, od której była odbita.
+
+Lokalnie, obie jednym poleceniem:
+
+```
+$ git branch -D feat/measurements docs/journal-pr3
+Deleted branch feat/measurements (was f9736bb).
+Deleted branch docs/journal-pr3 (was 06934d3).
+```
+
+`-D` zamiast `-d`, bo po squashu Git nie rozpozna, że commity są w
+`main` (7.9). Bezpieczne tylko po sprawdzeniu, że PR jest scalony.
+
+Na GitHubie `feat/measurements` zniknęła przyciskiem *Delete branch*, ale
+`docs/journal-pr3` nie była gałęzią tego PR-a, więc została. **Zanim
+usuniesz gałąź zdalną, sprawdź, czy nic na niej nie przepadnie:**
+
+```
+$ git show origin/docs/journal-pr3:docs/git-krok-po-kroku.md | grep -c "### 8.4 Pierwszy PR pod ochroną"
+1
+$ grep -c "### 8.4 Pierwszy PR pod ochroną" docs/git-krok-po-kroku.md
+1
+```
+
+`git show GAŁĄŹ:ŚCIEŻKA` wypisuje plik w wersji z danej gałęzi, bez
+przełączania się na nią. Sekcja jest w obu miejscach, więc:
+
+```
+$ git push origin --delete docs/journal-pr3
+ - [deleted]         docs/journal-pr3
+```
+
+---
+
+## Krok 10 ⏳ - konflikt, zrobiony celowo i rozwiązany ręcznie
+
+**Lekcja z planu w README:** `feat/trigger` - a conflict, made on purpose
+and resolved by hand.
+
+**Kiedy powstaje konflikt:** dwie gałęzie zmieniają **te same linie**
+(albo linie tuż obok siebie) tego samego pliku, każda inaczej. Git umie
+połączyć zmiany w różnych miejscach pliku sam; gdy obie dotyczą tego
+samego miejsca, nie zgaduje, która wersja jest właściwa, tylko pyta
+człowieka.
+
+**Plan:** dwie prawdziwe funkcje, obie odbite **od tego samego `main`**:
+
+| gałąź | funkcja | co zmienia w `src/main.ts` |
+|---|---|---|
+| `feat/trigger-modes` | tryby Auto / Normal / Single | nowe pola w `state`, nowa logika w `frame()` |
+| `feat/trigger-position` | przesuwany punkt triggera w poziomie | nowe pole w `state`, zmiana wywołania `sweep()` w `frame()` |
+
+Obie dopisują pola w tym samym miejscu obiektu `state` i obie zmieniają
+ten sam fragment `frame()`. Pierwszy PR scali się bez problemu, drugi
+dostanie konflikt, bo jego baza (`main` sprzed pierwszego merge'a) jest
+już nieaktualna.
+
+### 10.1 Pierwsza gałąź: tryby triggera
+
+- **Auto** - rysuje każdy przebieg; bez triggera „pływa” (free run).
+  Domyślny, bo zawsze coś widać.
+- **Normal** - rysuje tylko przebiegi z triggerem; bez triggera zostawia
+  ostatni dobry obraz. Do sygnałów, które pojawiają się co jakiś czas.
+- **Single** - czeka na jeden przebieg z triggerem, rysuje go i
+  zatrzymuje instrument. Do zdarzeń jednorazowych, np. startu linii
+  zasilania po włączeniu płyty.
+
+Decyzja „rysować / zatrzymać / jaki status” to czysta funkcja w
+`src/core/acquisition.ts`, testowana bez przeglądarki.
+
+**Przy okazji: osobny commit z poprawką.** Zrzut ekranu w trybie Single
+pokazał błąd z poprzedniego PR-a: średnia sinusa (ok. 10⁻¹⁵ V, reszta z
+zaokrągleń) wyświetlała się jako `-0.000007131 nV` i wychodziła poza
+kolumnę. Poprawka dostała **własny commit** (`Readouts: print rounding
+residue as zero`), a nie trafiła do commita z trybami: jeden commit = jedna
+zmiana. Dzięki temu da się ją znaleźć, zrozumieć i w razie potrzeby cofnąć
+osobno.
+
 ---
 
 ## Ściąga: codzienny cykl
