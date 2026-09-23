@@ -524,6 +524,9 @@ Aktualizacja dziennika (krok 5) powstała **po** merge'u PR #1, więc
 potrzebowała własnej drogi do `main`. Zamiast drugiego PR-a scalono ją z
 terminala.
 
+> **Nieaktualne od kroku 8:** ruleset na `main` blokuje bezpośredni push,
+> więc ta ścieżka już nie działa. Zostaje jako zapis tego, jak było.
+
 **Kiedy wolno:** drobna zmiana, której nikt nie musi recenzować (tu: sama
 dokumentacja), i brak ochrony gałęzi `main`. Gdy włączymy branch
 protection, ta ścieżka przestanie działać, i o to chodzi.
@@ -1117,9 +1120,97 @@ bench-scope jest publiczne.
 > check-run name: test success github-actions
 > ```
 
-### 8.3 Test: bezpośredni push na `main` musi zostać odrzucony ⏳
+### 8.3 Sprawdzenie, że reguły działają
 
-### 8.4 Ten opis trafia do `main` przez PR ⏳
+**Co GitHub faktycznie egzekwuje** (publiczne API, tylko odczyt; to samo
+widać w przeglądarce pod
+`https://github.com/RobiSolutions/bench-scope/rules?ref=refs%2Fheads%2Fmain`):
+
+```
+$ curl -s https://api.github.com/repos/RobiSolutions/bench-scope/rules/branches/main
+deletion                                               ← Restrict deletions
+non_fast_forward                                       ← Block force pushes
+pull_request approvals=0 methods=[merge,squash,rebase] ← Require a pull request
+required_status_checks checks=['test'] strict=False    ← Require status checks
+```
+
+`non_fast_forward` to techniczna nazwa force pusha: push, który nie jest
+zwykłym „przesunięciem do przodu”, tylko zastępuje historię. `strict=False`
+to odznaczone *Require branches to be up to date*.
+
+**Test: bezpośredni push na `main`.** Pusty commit (`--allow-empty`: commit
+bez żadnej zmiany w plikach, idealny do testów, bo niczego nie psuje):
+
+```
+$ git switch main
+$ git status --short
+                                   (pusto - brak niezapisanych zmian)
+$ git commit --allow-empty -m "Test: a direct push to main must be rejected"
+$ git push
+remote: error: GH013: Repository rule violations found for refs/heads/main.
+remote: Review all repository rules at https://github.com/RobiSolutions/bench-scope/rules?ref=refs%2Fheads%2Fmain
+remote:
+remote: - Changes must be made through a pull request.
+remote:
+remote: - Required status check "test" is expected.
+remote:
+To github.com:RobiSolutions/bench-scope.git
+ ! [remote rejected] main -> main (push declined due to repository rule violations)
+error: failed to push some refs to 'github.com:RobiSolutions/bench-scope.git'
+```
+
+Jak czytać odmowę:
+
+- `GH013` - kod błędu GitHuba dla naruszenia reguł; warto go znać, bo
+  po nim łatwo znaleźć opis w dokumentacji;
+- każda złamana reguła osobno, z myślnikiem;
+- `! [remote rejected]` - odrzucił **serwer** (GitHub), a nie Git u
+  ciebie. Lokalny commit dalej istnieje.
+
+**Sprzątanie po teście.** Commit został lokalnie, więc `main` jest „przed”
+GitHubem:
+
+```
+$ git status -sb
+## main...origin/main [ahead 1]
+
+$ git reset --hard origin/main
+HEAD is now at a648268 Journal: the first CI run and deploy; README links the live site
+
+$ git status -sb
+## main...origin/main
+```
+
+`git reset --hard origin/main` ustawia lokalny `main` dokładnie na stan z
+GitHuba i **wyrzuca wszystko, co było lokalnie inne**: commity i
+niezapisane zmiany w plikach. Tu było bezpieczne, bo commit był pusty, a
+`git status --short` przed testem nic nie pokazał. W innej sytuacji to
+jedno z niewielu poleceń Gita, którym naprawdę można stracić pracę.
+
+**Ale commit nie zniknął całkiem** - Git pamięta, gdzie był `HEAD`:
+
+```
+$ git reflog -3
+a648268 HEAD@{0}: reset: moving to origin/main
+c113c10 HEAD@{1}: commit: Test: a direct push to main must be rejected
+a648268 HEAD@{2}: checkout: moving from docs/branch-protection to main
+```
+
+`git reset --hard c113c10` przywróciłby go. To jest temat lekcji
+„reflog po `reset --hard`” z planu w README.
+
+**Co się zmienia na co dzień:**
+
+- szybka ścieżka z kroku 6 (merge lokalnie + push na `main`) już nie
+  działa: każda zmiana, także literówka w dokumentacji, idzie przez
+  gałąź i PR;
+- przycisk **Merge** w PR-ze jest szary, dopóki `test` nie jest zielony;
+- przy czerwonym CI ruleset nie pozwala scalić; poprawka = kolejny
+  commit na tej samej gałęzi, CI uruchomi się ponownie.
+
+### 8.4 Ten opis trafia do `main` przez PR #3 ⏳
+
+Do uzupełnienia: PR, oczekiwanie na `test`, merge.
 
 ---
 
