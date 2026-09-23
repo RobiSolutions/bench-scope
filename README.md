@@ -44,8 +44,10 @@ npm run build   # type-check, then a static bundle in dist/
 ## Layout
 
 ```
-src/core/      pure logic, no DOM: waveforms, trigger
+src/core/      pure logic, no DOM: waveforms, trigger, sweep, units
 src/core/__tests__/
+src/ui/        the tube (canvas) and the panel's styles
+src/main.ts    front panel state and the sweep loop
 ```
 
 `src/core` must stay free of the DOM. Anything that touches a canvas or an
