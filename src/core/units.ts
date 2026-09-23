@@ -29,8 +29,11 @@ const PREFIXES = [
 
 /** `0.0005, 's'` -> `'500 µs'`. At most `digits` significant digits. */
 export function formatSI(value: number, unit: string, digits = 3): string {
-  if (value === 0) return `0 ${unit}`;
   const magnitude = Math.abs(value);
+  // Below the smallest prefix there is only rounding residue - the mean of a
+  // whole number of sine periods comes out around 1e-15 - and printing it in
+  // nano-units gives '-0.00000713 nV'. Nothing on this bench is that small.
+  if (magnitude < 1e-9 * (1 - 1e-9)) return `0 ${unit}`;
   const [scale, prefix] =
     PREFIXES.find(([s]) => magnitude >= s * (1 - 1e-9)) ?? PREFIXES[5];
   return `${Number((value / scale).toPrecision(digits))} ${prefix}${unit}`;

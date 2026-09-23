@@ -32,6 +32,12 @@ describe('formatSI', () => {
     expect(formatSI(0, 'V')).toBe('0 V');
   });
 
+  it('treats values below the smallest prefix as zero', () => {
+    // The mean of a whole number of sine periods: rounding residue, not a reading.
+    expect(formatSI(-7.131e-15, 'V')).toBe('0 V');
+    expect(formatSI(1e-9, 'V')).toBe('1 nV');
+  });
+
   it('rounds to significant digits', () => {
     expect(formatSI(1234.5, 'Hz')).toBe('1.23 kHz');
   });
