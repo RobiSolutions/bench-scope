@@ -70,4 +70,7 @@ One lesson per branch, each merged through a pull request with CI green:
 
 Then branch protection on `main`: merge only when CI is green.
 
+Every step taken, command by command, with the output to expect:
+[docs/git-krok-po-kroku.md](docs/git-krok-po-kroku.md) (in Polish).
+
 The repository is public, so Actions minutes are free and unlimited.

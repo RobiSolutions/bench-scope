@@ -1,0 +1,373 @@
+# Git krok po kroku: dziennik bench-scope
+
+Każdy krok wykonany w tym repozytorium, zapisany tak, żeby dało się go
+powtórzyć od zera w innym projekcie. Przy każdym poleceniu jest to, co
+zobaczysz w terminalu, i sposób sprawdzenia, że się udało.
+
+Konwencja:
+
+- `$` na początku linii oznacza polecenie do wpisania (bez samego `$`).
+- Bloki bez `$` to wyjście z terminala: tak powinno wyglądać, hashe
+  commitów u ciebie będą inne.
+- ✅ oznacza krok wykonany w tym repo, ⏳ oznacza krok do zrobienia.
+
+---
+
+## Słowniczek na start
+
+| pojęcie | co to jest |
+|---|---|
+| **repozytorium (repo)** | folder projektu plus ukryty folder `.git`, w którym Git trzyma całą historię |
+| **commit** | zapisany stan plików z opisem, autorem i datą; ma unikalny hash, np. `fe07108` |
+| **gałąź (branch)** | ruchoma etykieta wskazująca na commit; rośnie z każdym nowym commitem |
+| **`main`** | główna gałąź: tu trafia tylko skończona, sprawdzona praca |
+| **remote / `origin`** | drugie repozytorium, np. na GitHubie; `origin` to umowna nazwa głównego |
+| **push** | wysłanie commitów z lokalnego repo do remote'a |
+| **PR (pull request)** | prośba na GitHubie: „włącz moją gałąź do `main`”, z miejscem na review i CI |
+
+**Commit lokalny a commit na GitHubie** to ten sam commit z tym samym
+hashem, tylko leżący w dwóch miejscach. `git commit` zapisuje u ciebie,
+`git push` wysyła kopię na GitHub. Push nigdy niczego nie commituje: wysyła
+tylko to, co już zostało zacommitowane.
+
+```
+pliki robocze --git add--> poczekalnia (staging) --git commit--> repo lokalne --git push--> GitHub
+```
+
+---
+
+## Krok 0 ✅ - stan wyjściowy
+
+Repo było założone lokalnie (`git init`) i miało jeden commit na gałęzi
+`master`. Remote'a nie było.
+
+```
+$ git log --oneline
+76ed258 The core before the pixels: waveforms and a trigger that holds still
+
+$ git remote -v
+                      (puste - brak remote'a)
+```
+
+Sprawdzenie, kto podpisuje commity (to trafia do każdego commita na zawsze):
+
+```
+$ git config user.name
+RobiSolutions
+$ git config user.email
+kontakt@robisolutionsit.com
+```
+
+> Jeśli tu jest coś złego, popraw **przed** pierwszym pushem:
+> `git config --global user.name "..."` i `git config --global user.email "..."`.
+> Email jest publiczny w historii publicznego repo.
+
+---
+
+## Krok 1 ✅ - zmiana nazwy `master` na `main`
+
+**Po co:** GitHub i większość narzędzi używa `main` jako nazwy gałęzi
+głównej. Jeśli wypchniesz `master`, na GitHubie domyślną gałęzią zostanie
+`master`, a zmiana tego później to dodatkowa robota.
+
+**Uwaga:** tu byliśmy już na gałęzi `feat/instrument` (utworzonej przez
+`git switch -c feat/instrument`), więc zmieniamy nazwę gałęzi, na której
+akurat nie jesteśmy. To działa, bo `git branch -m STARA NOWA` nie wymaga
+przełączenia się.
+
+```
+$ git branch -m master main
+```
+
+Sprawdzenie (gwiazdka oznacza bieżącą gałąź):
+
+```
+$ git branch
+* feat/instrument
+  main
+```
+
+**Żeby każde nowe repo od razu miało `main`** (jednorazowo, globalnie):
+
+```
+$ git config --global init.defaultBranch main
+```
+
+---
+
+## Krok 1b ✅ - właściwy klucz SSH dla tego repo
+
+**Problem:** na tym komputerze są dwa klucze SSH do dwóch kont GitHuba:
+
+| klucz | konto GitHub |
+|---|---|
+| `~/.ssh/id_ed25519_personal` | **RobiSolutions** |
+| `~/.ssh/id_ed25519_work` | **qvertech** |
+
+Bez wskazania klucza SSH bierze ten, który agent poda pierwszy. Dziś trafia
+w RobiSolutions, ale po restarcie albo dodaniu klucza do agenta w innej
+kolejności push mógłby pójść na konto qvertech i zostać odrzucony
+(„Permission denied” / „Repository not found”).
+
+**Jak sprawdzić, który klucz loguje na które konto** (bezpieczne, tylko
+test logowania):
+
+```
+$ ssh -T -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519_personal git@github.com
+Hi RobiSolutions! You've successfully authenticated, but GitHub does not provide shell access.
+```
+
+**Rozwiązanie:** przypisanie klucza temu jednemu repo. To ustawienie
+lokalne, trafia do `.git/config`, nie do żadnego commita i nie dotyczy
+innych projektów:
+
+```
+$ git config core.sshCommand "ssh -i ~/.ssh/id_ed25519_personal -o IdentitiesOnly=yes"
+```
+
+Sprawdzenie:
+
+```
+$ git config --local --get core.sshCommand
+ssh -i ~/.ssh/id_ed25519_personal -o IdentitiesOnly=yes
+```
+
+> W każdym nowym repo, które ma iść na konto RobiSolutions, powtórz to
+> polecenie (albo zrób wpis w `~/.ssh/config`, jeśli zechcesz to ustawić
+> raz dla wszystkich projektów).
+
+---
+
+## Krok 2 ✅ - commit Etapu 1 na gałęzi `feat/instrument`
+
+**Po co gałąź:** `main` ma zawierać tylko rzeczy skończone. Nowa praca
+powstaje na osobnej gałęzi, a do `main` trafia przez PR. Gałąź została
+utworzona na początku pracy:
+
+```
+$ git switch -c feat/instrument
+Switched to a new branch 'feat/instrument'
+```
+
+### 2.1 Zobacz, co się zmieniło
+
+```
+$ git status --short
+ M README.md
+ M src/core/waveform.ts
+?? index.html
+?? src/core/__tests__/sweep.test.ts
+?? src/core/__tests__/units.test.ts
+?? src/core/sweep.ts
+?? src/core/units.ts
+?? src/main.ts
+?? src/ui/
+```
+
+`M` to plik zmieniony, `??` to plik nowy, którego Git jeszcze nie śledzi.
+
+Szczegóły zmian w śledzonych plikach:
+
+```
+$ git diff
+```
+
+### 2.2 Sprawdź, że projekt działa, zanim go zapiszesz
+
+```
+$ npm test
+      Tests  36 passed (36)
+$ npm run build
+✓ built in 239ms
+```
+
+Commit z nieprzechodzącymi testami zadziała, ale potem trudno znaleźć, od
+którego miejsca coś się zepsuło.
+
+### 2.3 Dodaj pliki do poczekalni (staging)
+
+```
+$ git add README.md index.html src/
+```
+
+Lepiej wymieniać pliki i foldery niż pisać `git add .`: wtedy nie wpadnie
+przypadkiem nic, czego nie chcesz (np. zrzuty ekranu, pliki `.env`).
+
+Sprawdzenie (litera w **pierwszej** kolumnie oznacza „w poczekalni”):
+
+```
+$ git status --short
+M  README.md
+A  index.html
+A  src/core/__tests__/sweep.test.ts
+A  src/core/__tests__/units.test.ts
+A  src/core/sweep.ts
+A  src/core/units.ts
+M  src/core/waveform.ts
+A  src/main.ts
+A  src/ui/screen.ts
+A  src/ui/style.css
+```
+
+> Wycofanie pliku z poczekalni bez utraty zmian: `git restore --staged PLIK`.
+
+### 2.4 Commit
+
+Krótki opis w jednym poleceniu:
+
+```
+$ git commit -m "The instrument: a screen that holds a trace still"
+```
+
+Opis z treścią (tytuł, pusta linia, akapity): samo `git commit` otwiera
+edytor. W tym repo commit ma tytuł i treść:
+
+```
+The instrument: a screen that holds a trace still
+
+Stage 1 from the README. A graticule, a phosphor trace that fades over
+a few frames, and a front panel: time/div and volts/div in 1-2-5 steps,
+trigger level, edge and noise reject, and the four signal kinds.
+...
+```
+
+Zasady dobrego opisu:
+
+- tytuł do ok. 60 znaków, mówi **co** się zmieniło;
+- treść mówi **dlaczego** i co nieoczywistego jest w środku;
+- jeden commit to jedna logiczna zmiana (dlatego ten dziennik ma
+  osobny commit).
+
+### 2.5 Sprawdzenie
+
+```
+$ git log --oneline --graph --all
+* fe07108 The instrument: a screen that holds a trace still
+* 76ed258 The core before the pixels: waveforms and a trigger that holds still
+
+$ git status
+On branch feat/instrument
+nothing to commit, working tree clean
+```
+
+`working tree clean` oznacza, że wszystko jest zacommitowane. Teraz, i
+dopiero teraz, jest co wysłać na GitHub.
+
+### 2.6 Drugi commit: ten dziennik
+
+Dokumentacja to osobna logiczna zmiana, więc dostała osobny commit na tej
+samej gałęzi:
+
+```
+$ git add docs/git-krok-po-kroku.md README.md
+$ git commit -m "A step-by-step git journal, in Polish"
+```
+
+Gałąź `feat/instrument` ma więc dwa commity więcej niż `main`. Zobaczysz
+to w `git log --oneline --graph --all`, a potem w PR-ze.
+
+---
+
+## Krok 3 ⏳ - puste repo na GitHubie (w przeglądarce)
+
+1. Zaloguj się na <https://github.com> jako **RobiSolutions**. Sprawdź
+   awatar w prawym górnym rogu, żeby nie założyć repo na koncie qvertech.
+2. Prawy górny róg: **+** → **New repository**.
+3. **Owner:** `RobiSolutions`.
+4. **Repository name:** `bench-scope`.
+5. **Description** (opcjonalnie): `A browser oscilloscope that grows into a diagnostics trainer`.
+6. **Public** (Actions w publicznym repo są bez limitu minut).
+7. **Initialize this repository with:** zostaw wszystko
+   **odznaczone**:
+   - ☐ Add a README file
+   - ☐ Add .gitignore → *None*
+   - ☐ Choose a license → *None*
+
+   **Dlaczego:** każda z tych opcji tworzy na GitHubie commit, którego nie
+   ma lokalnie. Historie się rozjadą i pierwszy push zostanie odrzucony
+   (`rejected ... fetch first`). Licencję dodamy później, zwykłym commitem.
+8. **Create repository.**
+9. GitHub pokaże stronę „Quick setup”. Przełącz na **SSH** i skopiuj adres:
+   `git@github.com:RobiSolutions/bench-scope.git`.
+
+---
+
+## Krok 4 ⏳ - połączenie z GitHubem i push
+
+### 4.1 Dodaj remote
+
+```
+$ git remote add origin git@github.com:RobiSolutions/bench-scope.git
+```
+
+Sprawdzenie:
+
+```
+$ git remote -v
+origin  git@github.com:RobiSolutions/bench-scope.git (fetch)
+origin  git@github.com:RobiSolutions/bench-scope.git (push)
+```
+
+> Pomyłka w adresie: `git remote set-url origin POPRAWNY_ADRES`.
+
+### 4.2 Wypchnij `main`
+
+```
+$ git push -u origin main
+```
+
+`-u` (upstream) zapamiętuje, że lokalny `main` odpowiada `origin/main`.
+Potem wystarczy samo `git push` i `git pull`, a `git status` zacznie
+pokazywać „ahead / behind”.
+
+Pierwszy push na `main` sprawia, że GitHub uzna go za gałąź domyślną.
+
+### 4.3 Wypchnij gałąź z pracą
+
+```
+$ git push -u origin feat/instrument
+```
+
+Git wypisze link w stylu:
+
+```
+remote: Create a pull request for 'feat/instrument' on GitHub by visiting:
+remote:      https://github.com/RobiSolutions/bench-scope/pull/new/feat/instrument
+```
+
+---
+
+## Krok 5 ⏳ - pull request
+
+1. Otwórz link z kroku 4.3 (albo na stronie repo kliknij żółty pasek
+   **Compare & pull request**).
+2. Sprawdź kierunek: **base: `main`** ← **compare: `feat/instrument`**.
+3. Tytuł i opis: co wchodzi i jak to sprawdzić.
+4. **Create pull request.**
+5. Zakładka **Files changed**: przeczytaj własny diff jak recenzent. To
+   jest właściwa lekcja tego kroku.
+6. **Merge pull request** → **Confirm merge**.
+7. Po merge'u, lokalnie:
+
+   ```
+   $ git switch main
+   $ git pull
+   $ git branch -d feat/instrument          # usuwa gałąź lokalnie
+   $ git push origin --delete feat/instrument   # i na GitHubie (albo przycisk „Delete branch”)
+   ```
+
+---
+
+## Ściąga: codzienny cykl
+
+```
+$ git switch main && git pull              # start od aktualnego main
+$ git switch -c feat/nazwa                 # nowa gałąź na nową rzecz
+  ...praca...
+$ git status                               # co się zmieniło
+$ git add PLIKI
+$ git commit -m "co i po co"
+$ git push -u origin feat/nazwa            # pierwszy push gałęzi
+$ git push                                 # kolejne
+  → PR na GitHubie → merge → wróć do pierwszej linii
+```
