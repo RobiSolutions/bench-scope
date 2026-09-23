@@ -78,7 +78,8 @@ export function measure(samples: ArrayLike<number>, sampleRate: number): Measure
   const base = { max, min, peakToPeak, mean: sum / count, rms: Math.sqrt(squares / count) };
   if (!whole) return { ...base, frequency: null, period: null, duty: null };
 
-  const periodSamples = (last - first) / crossings.length;
+  // n crossings bound n - 1 periods, not n.
+  const periodSamples = (last - first) / (crossings.length - 1);
   return {
     ...base,
     frequency: sampleRate / periodSamples,
