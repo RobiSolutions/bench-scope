@@ -1009,7 +1009,7 @@ $ git branch -a
 
 ---
 
-## Krok 8 ⏳ - ochrona gałęzi `main` (ruleset)
+## Krok 8 ✅ - ochrona gałęzi `main` (ruleset)
 
 **Cel:** do `main` da się wprowadzić zmiany **tylko** przez PR, i tylko
 gdy CI jest zielone. Koniec z bezpośrednim pushem na `main` (szybka
@@ -1208,9 +1208,57 @@ a648268 HEAD@{2}: checkout: moving from docs/branch-protection to main
 - przy czerwonym CI ruleset nie pozwala scalić; poprawka = kolejny
   commit na tej samej gałęzi, CI uruchomi się ponownie.
 
-### 8.4 Ten opis trafia do `main` przez PR #3 ⏳
+### 8.4 Pierwszy PR pod ochroną (#3)
 
-Do uzupełnienia: PR, oczekiwanie na `test`, merge.
+Krok 8 (instrukcja i test) był zapisany na gałęzi `docs/branch-protection`
+i trafił do `main` przez PR #3 - innej drogi już nie ma.
+
+**Co zmieniło się w PR-ze:** przy checku `test` pojawia się etykieta
+**Required**, a dopóki check nie zakończy się sukcesem, merge jest
+zablokowany (przycisk nieaktywny, komunikat o wymaganych statusach). Po
+zielonym `test` merge się odblokowuje.
+
+Przebiegi w zakładce Actions (sprawdzone przez API):
+
+```
+CI #4       pull_request   docs/branch-protection   success   ← wymagany check w PR-ze
+CI #5       push           main                     success   ← po merge'u
+Deploy #3   push           main                     success   ← publikacja
+```
+
+**Squash and merge z edycją opisu.** Po kliknięciu *Squash and merge*
+GitHub pokazuje pole z tytułem i treścią nowego commita. W treść wkleja
+tytuły i opisy wszystkich commitów z gałęzi, każdy poprzedzony `*`:
+
+```
+$ git show --stat --format='%s%n%n%b' HEAD
+Journal: protecting main with a ruleset. (#3)
+
+* Journal: protecting main with a ruleset
+
+Step 8: rulesets against the older branch protection rules, ...
+
+* Journal: the ruleset holds - a direct push to main is refused
+
+Step 8.3 with the real output: ...
+```
+
+`git show --format='%s%n%n%b'` pokazuje tytuł (`%s`), dwie nowe linie
+(`%n%n`) i treść (`%b`) commita - wygodne do obejrzenia pełnego opisu.
+
+**Sprzątanie** - dokładnie jak w 7.9 (ostrzeżenie przy `branch -d` po
+squashu, potem `fetch --prune`).
+
+### 8.5 Dziennik zawsze jest o krok za kodem
+
+Opis PR-a #3 (ta sekcja) nie mógł wejść w PR #3, bo powstał po jego
+scaleniu. A do `main` może trafić tylko kolejnym PR-em - który też trzeba
+by opisać kolejnym PR-em, i tak bez końca.
+
+Rozwiązanie: opis ostatniego PR-a leży na osobnej gałęzi
+(`docs/journal-pr3`) i wchodzi do `main` **razem z następną lekcją**, a
+nie osobnym PR-em. Tak samo w zespołach: dokumentację wydania dopisuje się
+zwykle w kolejnym cyklu, a nie w nieskończonej serii PR-ów o PR-ach.
 
 ---
 
