@@ -55,7 +55,7 @@ Sprawdzenie, kto podpisuje commity (to trafia do każdego commita na zawsze):
 $ git config user.name
 RobiSolutions
 $ git config user.email
-kontakt@robisolutionsit.com
+(twój adres do commitów)
 ```
 
 > Jeśli tu jest coś złego, popraw **przed** pierwszym pushem:
@@ -97,17 +97,11 @@ $ git config --global init.defaultBranch main
 
 ## Krok 1b ✅ - właściwy klucz SSH dla tego repo
 
-**Problem:** na tym komputerze są dwa klucze SSH do dwóch kont GitHuba:
-
-| klucz | konto GitHub |
-|---|---|
-| `~/.ssh/id_ed25519_personal` | **RobiSolutions** |
-| `~/.ssh/id_ed25519_work` | **qvertech** |
-
-Bez wskazania klucza SSH bierze ten, który agent poda pierwszy. Dziś trafia
-w RobiSolutions, ale po restarcie albo dodaniu klucza do agenta w innej
-kolejności push mógłby pójść na konto qvertech i zostać odrzucony
-(„Permission denied” / „Repository not found”).
+**Problem:** gdy na jednym komputerze masz kilka kluczy SSH do różnych
+kont GitHuba, SSH bez wskazania klucza bierze ten, który agent poda
+pierwszy. Dziś może trafić we właściwe konto, ale po restarcie albo
+dodaniu klucza do agenta w innej kolejności push pójdzie na inne konto i
+zostanie odrzucony („Permission denied” / „Repository not found”).
 
 **Jak sprawdzić, który klucz loguje na które konto** (bezpieczne, tylko
 test logowania):
@@ -271,7 +265,7 @@ to w `git log --oneline --graph --all`, a potem w PR-ze.
 ## Krok 3 ✅ - puste repo na GitHubie (w przeglądarce)
 
 1. Zaloguj się na <https://github.com> jako **RobiSolutions**. Sprawdź
-   awatar w prawym górnym rogu, żeby nie założyć repo na koncie qvertech.
+   awatar w prawym górnym rogu, żeby nie założyć repo na innym koncie.
 2. Prawy górny róg: **+** → **New repository**.
 3. **Owner:** `RobiSolutions`.
 4. **Repository name:** `bench-scope`.
@@ -305,12 +299,11 @@ ERROR: Repository not found.
 fatal: Could not read from remote repository.
 ```
 
-> Ten sam błąd zobaczysz, gdy SSH zaloguje cię na **inne konto** (np.
-> qvertech) - dla GitHuba cudze prywatne repo „nie istnieje”. Wtedy wróć do
+> Ten sam błąd zobaczysz, gdy SSH zaloguje cię na **inne konto** - dla GitHuba cudze prywatne repo „nie istnieje”. Wtedy wróć do
 > kroku 1b.
 
 **Obok, w ustawieniach konta (Settings → Emails):** adres, którym
-podpisane są commity (`kontakt@robisolutionsit.com`), musi być na liście
+podpisane są commity (`git config user.email`), musi być na liście
 zweryfikowanych, inaczej GitHub nie połączy commitów z kontem (brak
 awatara, commity nie liczą się do aktywności na profilu). Adres logowania
 (Primary) to osobna sprawa i można go zmieniać bez wpływu na repo.
