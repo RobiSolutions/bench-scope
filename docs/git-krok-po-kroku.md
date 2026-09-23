@@ -524,6 +524,9 @@ Aktualizacja dziennika (krok 5) powstała **po** merge'u PR #1, więc
 potrzebowała własnej drogi do `main`. Zamiast drugiego PR-a scalono ją z
 terminala.
 
+> **Nieaktualne od kroku 8:** ruleset na `main` blokuje bezpośredni push,
+> więc ta ścieżka już nie działa. Zostaje jako zapis tego, jak było.
+
 **Kiedy wolno:** drobna zmiana, której nikt nie musi recenzować (tu: sama
 dokumentacja), i brak ochrony gałęzi `main`. Gdy włączymy branch
 protection, ta ścieżka przestanie działać, i o to chodzi.
@@ -1003,6 +1006,211 @@ $ git branch -a
 * main
   remotes/origin/main
 ```
+
+---
+
+## Krok 8 ⏳ - ochrona gałęzi `main` (ruleset)
+
+**Cel:** do `main` da się wprowadzić zmiany **tylko** przez PR, i tylko
+gdy CI jest zielone. Koniec z bezpośrednim pushem na `main` (szybka
+ścieżka z kroku 6 przestaje działać - celowo), koniec z force pushem i
+usunięciem `main`.
+
+**Dlaczego to ważne:** CI z kroku 7 tylko **informuje** (✓ / ✗). Bez
+ochrony czerwony PR i tak da się scalić jednym kliknięciem, a push prosto
+na `main` omija PR całkowicie. Ochrona zamienia informację w **regułę**.
+W firmach to standard: nikt, łącznie z szefem, nie wrzuca kodu na
+produkcyjną gałąź z pominięciem review i testów.
+
+### 8.1 Dwa mechanizmy w GitHubie: stary i nowy
+
+| | **Branch protection rules** (stary) | **Rulesets** (nowy) |
+|---|---|---|
+| gdzie | Settings → Branches | Settings → **Rules → Rulesets** |
+| zakres | jedna reguła = jeden wzorzec gałęzi | jeden zestaw może objąć wiele gałęzi i tagów |
+| wyłączenie | tylko usunięcie reguły | przełącznik Active / Disabled (bez kasowania) |
+| wgląd | tylko administratorzy | każdy z dostępem do repo widzi, jakie reguły obowiązują |
+
+Używamy **rulesetów**: to kierunek, w którym rozwija się GitHub, i
+obejmują wszystko, co ma stary mechanizm. Na koncie darmowym działają w
+**publicznych** repo (w prywatnych potrzebny GitHub Pro) - m.in. dlatego
+bench-scope jest publiczne.
+
+### 8.2 Ustawienie krok po kroku (w przeglądarce)
+
+1. Repo → **Settings** → w menu po lewej sekcja *Code and automation* →
+   **Rules** → **Rulesets**.
+2. **New ruleset** → **New branch ruleset**.
+
+**Część górna:**
+
+3. **Ruleset Name:** `protect-main`
+4. **Enforcement status:** **Active**.
+   (*Disabled* = reguły zapisane, ale nieegzekwowane; *Evaluate* jest
+   tylko w płatnych planach.)
+5. **Bypass list:** zostaw **pustą**.
+   Kto jest na tej liście, może omijać reguły. Gdybyś dodał tu siebie
+   (rola *Repository admin*), reguły by cię nie dotyczyły, a test w 8.3
+   by nic nie pokazał. W firmach bypass mają zwykle tylko konta awaryjne.
+
+**Target branches** (których gałęzi dotyczy):
+
+6. **Add target** → **Include default branch**.
+   Na liście pojawi się `Default`. „Default branch” to gałąź domyślna
+   repo, czyli `main`. Lepsze niż wpisanie nazwy na sztywno: gdyby kiedyś
+   gałąź domyślna zmieniła nazwę, reguła pójdzie za nią.
+
+**Rules** (co jest egzekwowane) - zaznacz:
+
+7. ☑ **Restrict deletions** (zwykle zaznaczone domyślnie)
+   `main` nie da się usunąć, ani na stronie, ani przez
+   `git push origin --delete main`.
+8. ☑ **Block force pushes** (zwykle zaznaczone domyślnie)
+   Zakaz `git push --force` na `main`, czyli zakaz przepisywania
+   opublikowanej historii.
+9. ☑ **Require a pull request before merging**
+   Rozwiń opcje pod spodem i ustaw:
+   - **Required approvals:** `0`.
+     **To ważne:** GitHub nie pozwala zatwierdzić własnego PR-a. Przy
+     pracy w pojedynkę wartość `1` zablokowałaby każdy merge na zawsze.
+     W zespole ustawia się tu `1` lub `2`.
+   - pozostałe pola wyboru pod spodem: **odznaczone**
+     (dotyczą recenzji w zespole: odrzucanie starych zatwierdzeń,
+     właściciele kodu, rozwiązywanie wątków).
+   - **Allowed merge methods:** zostaw wszystkie trzy (Merge, Squash,
+     Rebase).
+10. ☑ **Require status checks to pass**
+    Rozwiń opcje:
+    - **Add checks** → w polu wyszukiwania wpisz `test` → wybierz
+      **`test`** (ikona GitHub Actions).
+    - ☐ **Require branches to be up to date before merging**:
+      **odznaczone**. Po zaznaczeniu gałąź PR-a musiałaby zawierać
+      najnowszy `main` przed merge'em (przycisk *Update branch*). Przy
+      jednej osobie to głównie dodatkowe klikanie; w zespole ma sens.
+    - ☐ **Do not require status checks on creation**: bez zmian.
+11. Reszta reguł **odznaczona** (m.in. *Require linear history*,
+    *Require signed commits*, *Require deployments to succeed*) -
+    każda to osobny temat na później.
+12. Na dole **Create**.
+
+> **Pułapka: wybierz tylko `test`, nie `build` ani `deploy`.**
+> Lista pokazuje wszystkie joby, które kiedykolwiek raportowały wynik w
+> tym repo:
+>
+> | check | z którego workflowu | kiedy działa |
+> |---|---|---|
+> | `test` | `ci.yml` | przy każdym PR-ze ✓ |
+> | `build` | `deploy.yml` | **tylko** po pushu na `main` |
+> | `deploy` | `deploy.yml` | **tylko** po pushu na `main` |
+>
+> `build` i `deploy` nigdy nie uruchamiają się w PR-ze. Gdyby były
+> wymagane, każdy PR czekałby wiecznie z komunikatem
+> *Expected — Waiting for status to be reported*, a merge byłby
+> niemożliwy. Wymagać można tylko checków, które **naprawdę działają w
+> PR-ach**.
+>
+> Nazwy checków to nazwy **jobów** z plików workflow (`jobs: test:`), nie
+> nazwy workflowów (`name: CI`). Lista je zna, bo sprawdzono je tak
+> (tylko odczyt, publiczne API):
+>
+> ```
+> $ curl -s https://api.github.com/repos/RobiSolutions/bench-scope/commits/main/check-runs
+> check-run name: deploy success github-actions
+> check-run name: build success github-actions
+> check-run name: test success github-actions
+> ```
+
+### 8.3 Sprawdzenie, że reguły działają
+
+**Co GitHub faktycznie egzekwuje** (publiczne API, tylko odczyt; to samo
+widać w przeglądarce pod
+`https://github.com/RobiSolutions/bench-scope/rules?ref=refs%2Fheads%2Fmain`):
+
+```
+$ curl -s https://api.github.com/repos/RobiSolutions/bench-scope/rules/branches/main
+deletion                                               ← Restrict deletions
+non_fast_forward                                       ← Block force pushes
+pull_request approvals=0 methods=[merge,squash,rebase] ← Require a pull request
+required_status_checks checks=['test'] strict=False    ← Require status checks
+```
+
+`non_fast_forward` to techniczna nazwa force pusha: push, który nie jest
+zwykłym „przesunięciem do przodu”, tylko zastępuje historię. `strict=False`
+to odznaczone *Require branches to be up to date*.
+
+**Test: bezpośredni push na `main`.** Pusty commit (`--allow-empty`: commit
+bez żadnej zmiany w plikach, idealny do testów, bo niczego nie psuje):
+
+```
+$ git switch main
+$ git status --short
+                                   (pusto - brak niezapisanych zmian)
+$ git commit --allow-empty -m "Test: a direct push to main must be rejected"
+$ git push
+remote: error: GH013: Repository rule violations found for refs/heads/main.
+remote: Review all repository rules at https://github.com/RobiSolutions/bench-scope/rules?ref=refs%2Fheads%2Fmain
+remote:
+remote: - Changes must be made through a pull request.
+remote:
+remote: - Required status check "test" is expected.
+remote:
+To github.com:RobiSolutions/bench-scope.git
+ ! [remote rejected] main -> main (push declined due to repository rule violations)
+error: failed to push some refs to 'github.com:RobiSolutions/bench-scope.git'
+```
+
+Jak czytać odmowę:
+
+- `GH013` - kod błędu GitHuba dla naruszenia reguł; warto go znać, bo
+  po nim łatwo znaleźć opis w dokumentacji;
+- każda złamana reguła osobno, z myślnikiem;
+- `! [remote rejected]` - odrzucił **serwer** (GitHub), a nie Git u
+  ciebie. Lokalny commit dalej istnieje.
+
+**Sprzątanie po teście.** Commit został lokalnie, więc `main` jest „przed”
+GitHubem:
+
+```
+$ git status -sb
+## main...origin/main [ahead 1]
+
+$ git reset --hard origin/main
+HEAD is now at a648268 Journal: the first CI run and deploy; README links the live site
+
+$ git status -sb
+## main...origin/main
+```
+
+`git reset --hard origin/main` ustawia lokalny `main` dokładnie na stan z
+GitHuba i **wyrzuca wszystko, co było lokalnie inne**: commity i
+niezapisane zmiany w plikach. Tu było bezpieczne, bo commit był pusty, a
+`git status --short` przed testem nic nie pokazał. W innej sytuacji to
+jedno z niewielu poleceń Gita, którym naprawdę można stracić pracę.
+
+**Ale commit nie zniknął całkiem** - Git pamięta, gdzie był `HEAD`:
+
+```
+$ git reflog -3
+a648268 HEAD@{0}: reset: moving to origin/main
+c113c10 HEAD@{1}: commit: Test: a direct push to main must be rejected
+a648268 HEAD@{2}: checkout: moving from docs/branch-protection to main
+```
+
+`git reset --hard c113c10` przywróciłby go. To jest temat lekcji
+„reflog po `reset --hard`” z planu w README.
+
+**Co się zmienia na co dzień:**
+
+- szybka ścieżka z kroku 6 (merge lokalnie + push na `main`) już nie
+  działa: każda zmiana, także literówka w dokumentacji, idzie przez
+  gałąź i PR;
+- przycisk **Merge** w PR-ze jest szary, dopóki `test` nie jest zielony;
+- przy czerwonym CI ruleset nie pozwala scalić; poprawka = kolejny
+  commit na tej samej gałęzi, CI uruchomi się ponownie.
+
+### 8.4 Ten opis trafia do `main` przez PR #3 ⏳
+
+Do uzupełnienia: PR, oczekiwanie na `test`, merge.
 
 ---
 
