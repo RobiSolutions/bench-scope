@@ -185,6 +185,26 @@ output {
   border-color: var(--phosphor);
 }
 
+.measurements {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 8px;
+  margin: 0;
+}
+
+.measurements dt {
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
+.measurements dd {
+  margin: 2px 0 0;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-variant-numeric: tabular-nums;
+  color: var(--phosphor);
+  white-space: nowrap;
+}
+
 .run {
   padding: 10px;
   font-weight: 600;
