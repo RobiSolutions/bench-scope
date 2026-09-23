@@ -8,6 +8,7 @@
 import './ui/style.css';
 import { DEFAULT_WAVE, type Wave, type WaveKind } from './core/waveform';
 import type { Edge } from './core/trigger';
+import { measure, type Measurements } from './core/measure';
 import { sampleRateFor, sweep } from './core/sweep';
 import { formatSI, steps125 } from './core/units';
 import { Screen, type View } from './ui/screen';
@@ -145,6 +146,20 @@ $('#run').addEventListener('click', () => {
 
 let triggered = false;
 
+/** Readings change every frame; a person can read about five a second. */
+const MEASURE_INTERVAL_MS = 200;
+let lastMeasured = -Infinity;
+
+function showMeasurements(m: Measurements): void {
+  const or = (v: number | null, show: (v: number) => string) => (v === null ? '—' : show(v));
+  $('#m-vpp').textContent = formatSI(m.peakToPeak, 'V');
+  $('#m-frequency').textContent = or(m.frequency, (v) => formatSI(v, 'Hz'));
+  $('#m-period').textContent = or(m.period, (v) => formatSI(v, 's'));
+  $('#m-duty').textContent = or(m.duty, (v) => `${(v * 100).toFixed(1)} %`);
+  $('#m-mean').textContent = formatSI(m.mean, 'V');
+  $('#m-rms').textContent = formatSI(m.rms, 'V');
+}
+
 function showStatus(): void {
   const status = $('#ro-status');
   const [label, modifier] = !state.running
@@ -203,6 +218,10 @@ function frame(now: number): void {
       now / 1000
     );
     screen.drawTrace(result);
+    if (now - lastMeasured >= MEASURE_INTERVAL_MS) {
+      showMeasurements(measure(result.samples, sampleRateFor(secondsPerDiv())));
+      lastMeasured = now;
+    }
     if (result.triggered !== triggered) {
       triggered = result.triggered;
       showStatus();

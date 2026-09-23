@@ -1009,7 +1009,7 @@ $ git branch -a
 
 ---
 
-## Krok 8 ⏳ - ochrona gałęzi `main` (ruleset)
+## Krok 8 ✅ - ochrona gałęzi `main` (ruleset)
 
 **Cel:** do `main` da się wprowadzić zmiany **tylko** przez PR, i tylko
 gdy CI jest zielone. Koniec z bezpośrednim pushem na `main` (szybka
@@ -1208,9 +1208,204 @@ a648268 HEAD@{2}: checkout: moving from docs/branch-protection to main
 - przy czerwonym CI ruleset nie pozwala scalić; poprawka = kolejny
   commit na tej samej gałęzi, CI uruchomi się ponownie.
 
-### 8.4 Ten opis trafia do `main` przez PR #3 ⏳
+### 8.4 Pierwszy PR pod ochroną (#3)
 
-Do uzupełnienia: PR, oczekiwanie na `test`, merge.
+Krok 8 (instrukcja i test) był zapisany na gałęzi `docs/branch-protection`
+i trafił do `main` przez PR #3 - innej drogi już nie ma.
+
+**Co zmieniło się w PR-ze:** przy checku `test` pojawia się etykieta
+**Required**, a dopóki check nie zakończy się sukcesem, merge jest
+zablokowany (przycisk nieaktywny, komunikat o wymaganych statusach). Po
+zielonym `test` merge się odblokowuje.
+
+Przebiegi w zakładce Actions (sprawdzone przez API):
+
+```
+CI #4       pull_request   docs/branch-protection   success   ← wymagany check w PR-ze
+CI #5       push           main                     success   ← po merge'u
+Deploy #3   push           main                     success   ← publikacja
+```
+
+**Squash and merge z edycją opisu.** Po kliknięciu *Squash and merge*
+GitHub pokazuje pole z tytułem i treścią nowego commita. W treść wkleja
+tytuły i opisy wszystkich commitów z gałęzi, każdy poprzedzony `*`:
+
+```
+$ git show --stat --format='%s%n%n%b' HEAD
+Journal: protecting main with a ruleset. (#3)
+
+* Journal: protecting main with a ruleset
+
+Step 8: rulesets against the older branch protection rules, ...
+
+* Journal: the ruleset holds - a direct push to main is refused
+
+Step 8.3 with the real output: ...
+```
+
+`git show --format='%s%n%n%b'` pokazuje tytuł (`%s`), dwie nowe linie
+(`%n%n`) i treść (`%b`) commita - wygodne do obejrzenia pełnego opisu.
+
+**Sprzątanie** - dokładnie jak w 7.9 (ostrzeżenie przy `branch -d` po
+squashu, potem `fetch --prune`).
+
+### 8.5 Dziennik zawsze jest o krok za kodem
+
+Opis PR-a #3 (ta sekcja) nie mógł wejść w PR #3, bo powstał po jego
+scaleniu. A do `main` może trafić tylko kolejnym PR-em - który też trzeba
+by opisać kolejnym PR-em, i tak bez końca.
+
+Rozwiązanie: opis ostatniego PR-a leży na osobnej gałęzi
+(`docs/journal-pr3`) i wchodzi do `main` **razem z następną lekcją**, a
+nie osobnym PR-em. Tak samo w zespołach: dokumentację wydania dopisuje się
+zwykle w kolejnym cyklu, a nie w nieskończonej serii PR-ów o PR-ach.
+
+---
+
+## Krok 9 ✅ - czerwony PR: CI łapie błąd, ruleset blokuje merge (#4)
+
+**Funkcja:** pomiary w panelu (Vpp, częstotliwość, okres, wypełnienie,
+średnia, RMS), gałąź `feat/measurements`.
+
+**Lekcja:** co się dzieje, gdy do PR-a trafia kod z błędem. Błąd nie był
+zaplanowany: pierwsza wersja `measure.ts` miała prawdziwą pomyłkę, którą
+testy złapały lokalnie. Zamiast poprawić ją od razu, wypchnięto ją
+celowo, żeby zobaczyć całą drogę: czerwone CI → blokada merge → log →
+poprawka → zielone CI.
+
+> **Normalnie tak się nie robi:** przed pushem uruchamiasz `npm test`, a
+> CI jest siatką bezpieczeństwa na to, co przeoczysz (albo na kogoś, kto
+> testów nie uruchomił). Tu testy świadomie pominięto.
+
+### 9.1 Gałąź odbita od gałęzi z dokumentacją
+
+```
+$ git switch docs/journal-pr3          # gałąź z krokiem 8.4 (patrz 8.5)
+$ git switch -c feat/measurements      # nowa gałąź zaczyna się tam, gdzie stoisz
+```
+
+Dzięki temu PR #4 niesie i pomiary, i zaległą dokumentację; osobny PR na
+samą dokumentację nie jest potrzebny.
+
+### 9.2 Błąd, który złapały testy
+
+Kod liczył okres jako odległość od pierwszego do ostatniego przecięcia
+podzieloną przez **liczbę przecięć**:
+
+```ts
+const periodSamples = (last - first) / crossings.length;        // źle
+```
+
+Między 10 przecięciami jest 9 okresów, nie 10 - klasyczny błąd „o jeden”
+(*off-by-one*), jak z płotem: 10 słupków to 9 przęseł.
+
+Na ekranie było to widać od razu: generator 1 kHz, pomiar **1,5 kHz**
+(dwa okresy na ekranie: 3 przecięcia, dzielenie przez 3 zamiast przez 2).
+
+### 9.3 Czerwony PR
+
+Po otwarciu PR-a:
+
+```
+CI #6   pull_request   63b380c   failure   ← CI / test ✗
+```
+
+Merge był zablokowany: `test` jest wymagany przez ruleset z kroku 8, więc
+czerwony check to nie ostrzeżenie, tylko twarda blokada.
+
+**Details** → krok **Run npm test** → na końcu logu:
+
+```
+Error: AssertionError: expected 3802.777561474705 to be close to 3700, received difference is 102.77756147470518, but expected 0.5
+ ❯ src/core/__tests__/measure.test.ts:36:25
+
+Error: AssertionError: expected 1111.111111111111 to be close to 1000, received difference is 111.11111111111109, but expected 0.5
+ ❯ src/core/__tests__/measure.test.ts:42:25
+
+Error: AssertionError: expected 1111.101414897564 to be close to 1000, received difference is 111.10141489756393, but expected 5
+ ❯ src/core/__tests__/measure.test.ts:48:25
+
+Error: Process completed with exit code 1.
+```
+
+Jak czytać jedną linię:
+
+```
+expected 1111.11 to be close to 1000, received difference is 111.11, but expected 0.5
+         └ wynik     └ oczekiwane                            └ różnica          └ tolerancja
+❯ src/core/__tests__/measure.test.ts:42:25        ← plik : linia : kolumna
+```
+
+`Process completed with exit code 1` - `npm test` zakończył się kodem
+różnym od zera, a dla Actions każdy niezerowy kod = krok nieudany = job
+czerwony. Tak CI rozpoznaje porażkę każdego narzędzia, nie tylko testów.
+
+**Ile testów padło naprawdę:** cztery, nie trzy - pierwszy (linia 29)
+był wyżej w logu. Pełną listę widać:
+
+- w zakładce **Files changed** PR-a: GitHub wstawia błędy jako
+  **adnotacje** (czerwone ramki) przy liniach 29, 36, 42, 48 pliku z
+  testami;
+- w podsumowaniu przebiegu (Actions → przebieg → *Annotations*).
+
+### 9.4 Diagnoza z samych liczb
+
+Zanim otworzysz kod, policz proporcje:
+
+| test | oczekiwane | wynik | proporcja |
+|---|---|---|---|
+| sinus 1 kHz | 1000 | 1111,1 | 1,111 = **10/9** |
+| sinus 3,7 kHz | 3700 | 3802,8 | 1,028 ≈ **37/36** |
+
+Ekran testu mieści 10 okresów 1 kHz (10 przecięć, 9 odstępów) i ok. 37
+okresów 3,7 kHz. Proporcja n/(n−1) w każdym teście wskazuje jeden błąd:
+dzielenie przez liczbę przecięć zamiast liczby odstępów. Kilka
+czerwonych testów o **tym samym wzorze** to zwykle jedna przyczyna, a nie
+kilka osobnych.
+
+### 9.5 Poprawka w tym samym PR-ze
+
+Nie zamyka się PR-a ani nie otwiera nowego: kolejny commit na tej samej
+gałęzi trafia do PR-a sam.
+
+```ts
+// n crossings bound n - 1 periods, not n.
+const periodSamples = (last - first) / (crossings.length - 1);
+```
+
+```
+$ npm test
+      Tests  44 passed (44)
+$ git add src/core/measure.ts
+$ git commit -m "Measurements: divide by the periods, not the crossings"
+$ git push
+   63b380c..8de15f7  feat/measurements -> feat/measurements
+```
+
+CI uruchomiło się samo dla nowego commita:
+
+```
+CI #7   pull_request   8de15f7   success   ← poprawka
+CI #6   pull_request   63b380c   failure   ← błąd
+```
+
+W PR-ze:
+
+```
+All checks have passed
+CI / test (pull_request)   Successful in 10s   Required
+No conflicts with base branch
+Merging can be performed automatically.
+```
+
+Etykieta **Required** przy checku to efekt rulesetu. Ruleset patrzy na
+wynik dla **ostatniego** commita w PR-ze: stary czerwony przebieg zostaje
+w historii, ale już niczego nie blokuje.
+
+### 9.6 Opis tego kroku - w tym samym PR-ze
+
+Tym razem dziennik wchodzi razem z kodem: ten opis to trzeci commit na
+`feat/measurements`, dopisany po zielonym CI, a przed merge'em.
 
 ---
 
