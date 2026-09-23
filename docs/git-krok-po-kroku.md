@@ -268,7 +268,7 @@ to w `git log --oneline --graph --all`, a potem w PR-ze.
 
 ---
 
-## Krok 3 ⏳ - puste repo na GitHubie (w przeglądarce)
+## Krok 3 ✅ - puste repo na GitHubie (w przeglądarce)
 
 1. Zaloguj się na <https://github.com> jako **RobiSolutions**. Sprawdź
    awatar w prawym górnym rogu, żeby nie założyć repo na koncie qvertech.
@@ -290,9 +290,36 @@ to w `git log --oneline --graph --all`, a potem w PR-ze.
 9. GitHub pokaże stronę „Quick setup”. Przełącz na **SSH** i skopiuj adres:
    `git@github.com:RobiSolutions/bench-scope.git`.
 
+**Sprawdzenie z terminala, że repo istnieje i jest puste** (tylko odczyt,
+niczego nie wysyła):
+
+```
+$ git ls-remote git@github.com:RobiSolutions/bench-scope.git
+                      (puste wyjście, kod wyjścia 0 - repo jest, gałęzi brak)
+```
+
+Dla porównania, zanim repo powstało:
+
+```
+ERROR: Repository not found.
+fatal: Could not read from remote repository.
+```
+
+> Ten sam błąd zobaczysz, gdy SSH zaloguje cię na **inne konto** (np.
+> qvertech) - dla GitHuba cudze prywatne repo „nie istnieje”. Wtedy wróć do
+> kroku 1b.
+
+**Obok, w ustawieniach konta (Settings → Emails):** adres, którym
+podpisane są commity (`kontakt@robisolutionsit.com`), musi być na liście
+zweryfikowanych, inaczej GitHub nie połączy commitów z kontem (brak
+awatara, commity nie liczą się do aktywności na profilu). Adres logowania
+(Primary) to osobna sprawa i można go zmieniać bez wpływu na repo.
+Opcja *Block command line pushes that expose my email* odrzuci push
+podpisany prawdziwym adresem - włączaj ją tylko razem z adresem noreply.
+
 ---
 
-## Krok 4 ⏳ - połączenie z GitHubem i push
+## Krok 4 ✅ - połączenie z GitHubem i push
 
 ### 4.1 Dodaj remote
 
@@ -314,7 +341,12 @@ origin  git@github.com:RobiSolutions/bench-scope.git (push)
 
 ```
 $ git push -u origin main
+To github.com:RobiSolutions/bench-scope.git
+ * [new branch]      main -> main
+branch 'main' set up to track 'origin/main'.
 ```
+
+`* [new branch]` oznacza, że tej gałęzi na GitHubie jeszcze nie było.
 
 `-u` (upstream) zapamiętuje, że lokalny `main` odpowiada `origin/main`.
 Potem wystarczy samo `git push` i `git pull`, a `git status` zacznie
@@ -326,14 +358,54 @@ Pierwszy push na `main` sprawia, że GitHub uzna go za gałąź domyślną.
 
 ```
 $ git push -u origin feat/instrument
-```
-
-Git wypisze link w stylu:
-
-```
+remote:
 remote: Create a pull request for 'feat/instrument' on GitHub by visiting:
 remote:      https://github.com/RobiSolutions/bench-scope/pull/new/feat/instrument
+remote:
+To github.com:RobiSolutions/bench-scope.git
+ * [new branch]      feat/instrument -> feat/instrument
+branch 'feat/instrument' set up to track 'origin/feat/instrument'.
 ```
+
+Linie z `remote:` pisze GitHub, nie Git: to gotowy link do PR-a.
+
+### 4.4 Sprawdzenie
+
+Która gałąź lokalna śledzi którą zdalną (w nawiasach kwadratowych):
+
+```
+$ git branch -vv
+* feat/instrument ec50bdc [origin/feat/instrument] A step-by-step git journal, in Polish
+  main            76ed258 [origin/main] The core before the pixels: ...
+```
+
+Cała historia z etykietami gałęzi lokalnych i zdalnych:
+
+```
+$ git log --oneline --graph --all --decorate
+* ec50bdc (HEAD -> feat/instrument, origin/feat/instrument) A step-by-step git journal, in Polish
+* fe07108 The instrument: a screen that holds a trace still
+* 76ed258 (origin/main, main) The core before the pixels: ...
+```
+
+Jak to czytać:
+
+- `main` i `origin/main` wskazują na ten sam commit, czyli GitHub ma
+  dokładnie to, co ty;
+- `feat/instrument` jest dwa commity przed `main`: to są te dwa commity,
+  które wejdą do `main` przez PR;
+- `HEAD ->` wskazuje gałąź, na której teraz jesteś.
+
+### 4.5 Kolejne zmiany na tej samej gałęzi
+
+Każdy następny commit na `feat/instrument` wysyła się już samym:
+
+```
+$ git push
+```
+
+Jeśli PR jest już otwarty, nowy commit sam się w nim pojawi. Nie trzeba
+zakładać nowego PR-a. Tak trafiła na GitHub ta aktualizacja dziennika.
 
 ---
 
