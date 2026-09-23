@@ -23,6 +23,8 @@ const state = {
   level: 0,
   edge: 'rising' as Edge,
   noiseReject: false,
+  /** Where the trigger crossing sits across the screen, 0..1. */
+  position: 0.5,
   running: true,
 };
 
@@ -35,6 +37,7 @@ const view = (): View => ({
   voltsPerDiv: voltsPerDiv(),
   triggerLevel: state.level,
   edge: state.edge,
+  position: state.position,
 });
 
 function $<T extends HTMLElement>(selector: string): T {
@@ -72,6 +75,13 @@ type Slider = {
 };
 
 const sliders: Slider[] = [
+  {
+    // Percent of the screen left of the trigger: more lead-up or more aftermath.
+    id: 'position',
+    read: () => state.position,
+    write: (p) => (state.position = p),
+    show: () => `${Math.round(state.position * 100)} %`,
+  },
   {
     // Positioned in divisions, stored in volts: the level stays put on the
     // signal when V/div changes, and the slider always spans the screen.
@@ -213,6 +223,7 @@ function frame(now: number): void {
       state.wave,
       {
         secondsPerDiv: secondsPerDiv(),
+        position: state.position,
         trigger: { level: state.level, edge: state.edge, hysteresis: hysteresis() },
       },
       now / 1000

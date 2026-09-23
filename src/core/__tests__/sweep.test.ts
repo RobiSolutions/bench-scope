@@ -27,6 +27,22 @@ describe('sweep', () => {
     expect(valueAt(s, 0.51)).toBeGreaterThan(valueAt(s, 0.49));
   });
 
+  it('puts the crossing where the position says', () => {
+    for (const position of [0.1, 0.25, 0.8]) {
+      const s = sweep(sine, { ...settings({ level: 0.5, edge: 'rising' }), position }, 0.0123);
+      expect(s.triggered).toBe(true);
+      expect(valueAt(s, position)).toBeCloseTo(0.5, 3);
+    }
+  });
+
+  it('keeps the whole screen covered at the extreme positions', () => {
+    for (const position of [0, 1]) {
+      const s = sweep(sine, { ...settings({ level: 0, edge: 'rising' }), position }, 0.5);
+      if (!s.triggered) continue;
+      expect(s.samples.length).toBeGreaterThan(SAMPLES_PER_SCREEN + s.shift);
+    }
+  });
+
   it('puts a falling crossing at the centre of the screen', () => {
     const s = sweep(sine, settings({ level: -0.3, edge: 'falling' }), 0.0123);
     expect(s.triggered).toBe(true);

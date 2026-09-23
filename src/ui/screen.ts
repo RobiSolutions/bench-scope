@@ -14,6 +14,8 @@ export type View = {
   voltsPerDiv: number;
   triggerLevel: number;
   edge: Edge;
+  /** Where the trigger crossing sits across the screen, 0..1. */
+  position: number;
 };
 
 const GRID = 'rgba(140, 200, 165, 0.16)';
@@ -159,11 +161,12 @@ export class Screen {
 
     g.fillStyle = MARKER;
 
-    // Trigger position: the crossing is always drawn at the centre.
+    // Trigger position: where the crossing is drawn across the screen.
+    const tx = w * this.view.position;
     g.beginPath();
-    g.moveTo(w / 2 - 6, 0);
-    g.lineTo(w / 2 + 6, 0);
-    g.lineTo(w / 2, 8);
+    g.moveTo(tx - 6, 0);
+    g.lineTo(tx + 6, 0);
+    g.lineTo(tx, 8);
     g.fill();
 
     // Trigger level, pinned to the edge when it is off screen.
