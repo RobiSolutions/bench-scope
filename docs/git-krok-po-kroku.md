@@ -612,7 +612,7 @@ To ta sama szybka ścieżka, tylko bez gałęzi.
 
 ---
 
-## Krok 7 ⏳ - CI i automatyczna publikacja (gałąź `ci/deploy`)
+## Krok 7 ✅ - CI i automatyczna publikacja (gałąź `ci/deploy`)
 
 **CI** (continuous integration) to testy i build uruchamiane
 automatycznie przez GitHuba przy każdym PR-ze. **Deploy** to automatyczna
@@ -906,10 +906,103 @@ Uwaga: samo wypchnięcie gałęzi **nie** uruchamia CI, bo `ci.yml` reaguje
 na PR-y i na `main`, a nie na każdą gałąź. Pierwszy przebieg ruszy po
 otwarciu PR-a.
 
-### 7.8 PR, zielony check, merge i pierwsza publikacja ⏳
+### 7.8 PR #2: zielony check, squash, pierwsza publikacja
 
-Do uzupełnienia po przejściu: otwarcie PR-a, przebieg CI widoczny przy
-PR-ze, merge, przebieg Deploy i adres strony.
+**Kolejność ma znaczenie:** najpierw Settings → Pages → Source: GitHub
+Actions (7.6), dopiero potem PR i merge.
+
+> **Pułapka w ustawieniach Pages:** po wybraniu *GitHub Actions* GitHub
+> proponuje gotowe workflowy (*Static HTML*, *Jekyll*) z przyciskiem
+> **Configure**. Nie klikaj: utworzyłby drugi plik deploy commitem prosto
+> na `main`, z pominięciem PR-a, i dublowałby `deploy.yml`.
+
+**Checki w PR-ze.** Po otwarciu PR-a na dole zakładki Conversation:
+
+```
+All checks have passed
+1 successful check
+CI / test (pull_request)   Successful in 16s
+No conflicts with base branch
+```
+
+`CI / test` = nazwa workflowu (`name: CI`) / nazwa joba (`test:`), a w
+nawiasie zdarzenie, które go uruchomiło. **Details** pokazuje log każdego
+kroku: checkout, setup-node, npm ci, npm test, npm run build.
+
+W podsumowaniu przebiegu może pojawić się **adnotacja** (notice): tu
+GitHub uprzedzał, że etykieta `ubuntu-latest` przejdzie na nowszy
+Ubuntu. To informacja, nie błąd; warto je czytać, bo tak GitHub zapowiada
+zmiany, które kiedyś mogą coś zepsuć.
+
+**Merge: tym razem Squash and merge.** Cztery commity z gałęzi zamieniły
+się w jeden nowy commit na `main`, z numerem PR-a w tytule:
+
+```
+* 1aaef76 (HEAD -> main, origin/main) CI and Pages deploy (#2)
+* 8a007c8 Journal: keep it free of account details
+```
+
+Porównaj z PR #1 (merge commit, „bąbel” w wykresie): po squashu historia
+`main` jest prosta, a pojedyncze commity z gałęzi zostają widoczne tylko w
+PR-ze na GitHubie.
+
+**Zakładka Actions po merge'u** - trzy przebiegi:
+
+```
+CI #1       Pull request #2 opened      ci/deploy   19s   ← checki w PR-ze
+CI #2       Commit 1aaef76 pushed       main        19s   ← merge to push na main
+Deploy #1   Commit 1aaef76 pushed       main        58s   ← publikacja
+```
+
+Merge na GitHubie to z punktu widzenia workflowów zwykły **push na
+`main`**, dlatego ruszyły oba workflowy z `on: push: branches: [main]`,
+i to równolegle. Deploy to dwa joby po kolei (`needs: build`):
+
+```
+build    18s   testy, build, spakowanie dist/
+deploy   31s   publikacja na Pages
+```
+
+Strona: <https://robisolutions.github.io/bench-scope/>
+
+### 7.9 Synchronizacja i sprzątanie po squashu
+
+```
+$ git switch main
+$ git pull
+From github.com:RobiSolutions/bench-scope
+   8a007c8..1aaef76  main       -> origin/main
+Updating 8a007c8..1aaef76
+Fast-forward
+
+$ git branch -d ci/deploy
+warning: deleting branch 'ci/deploy' that has been merged to
+         'refs/remotes/origin/ci/deploy', but not yet merged to HEAD
+Deleted branch ci/deploy (was 94d2dd1).
+```
+
+**Co tu się stało:** squash stworzył na `main` **nowy** commit, więc z
+punktu widzenia Gita commity gałęzi `ci/deploy` nie są w `main`. `-d`
+normalnie odmówiłby (`not fully merged`). Tu przepuścił z ostrzeżeniem,
+bo lokalna etykieta `origin/ci/deploy` jeszcze istniała i zawierała te
+same commity - Git uznał, że nic nie przepadnie.
+
+Gdyby najpierw zrobić `git fetch --prune` (etykieta zdalna znika), `-d`
+by odmówił. Wtedy, **po upewnieniu się, że PR jest scalony**:
+
+```
+$ git branch -D ci/deploy          # wielkie D = usuń mimo to
+```
+
+Na koniec:
+
+```
+$ git fetch --prune
+ - [deleted]         (none)     -> origin/ci/deploy
+$ git branch -a
+* main
+  remotes/origin/main
+```
 
 ---
 

@@ -2,6 +2,9 @@
 
 A browser oscilloscope that grows into a diagnostics trainer.
 
+**Live:** <https://robisolutions.github.io/bench-scope/>, published by
+GitHub Actions on every merge to `main`.
+
 Built as a deliberate practice ground for git and GitHub Actions, and designed
 so it can join the portfolio once it stands on its own. It is not part of
 `3d-portfolio` and does not share code with it.
