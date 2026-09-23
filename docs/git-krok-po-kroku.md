@@ -612,6 +612,307 @@ To ta sama szybka ścieżka, tylko bez gałęzi.
 
 ---
 
+## Krok 7 ⏳ - CI i automatyczna publikacja (gałąź `ci/deploy`)
+
+**CI** (continuous integration) to testy i build uruchamiane
+automatycznie przez GitHuba przy każdym PR-ze. **Deploy** to automatyczna
+publikacja strony po każdym merge'u do `main`. Obie rzeczy robi
+**GitHub Actions**: usługa, która na serwerach GitHuba wykonuje polecenia
+opisane w plikach YAML z repozytorium.
+
+### 7.1 Gdzie te pliki powstają, a gdzie działają
+
+To najczęstsze nieporozumienie, więc na początek: **żaden z tych plików
+nie powstaje na GitHubie.** Tworzy się je lokalnie, w edytorze, jak każdy
+inny plik projektu, a potem commituje i pushuje. GitHub tylko je czyta.
+
+```
+TWÓJ KOMPUTER                                    GITHUB
+─────────────                                    ──────
+edytor: tworzysz pliki
+  .github/workflows/ci.yml
+  .github/workflows/deploy.yml
+  vite.config.ts
+  .node-version
+        │
+   git add / git commit       (zapis lokalny)
+        │
+   git push  ─────────────────────────────────►  repo na GitHubie ma te pliki
+                                                        │
+                                  GitHub zauważa folder .github/workflows/
+                                  i sam uruchamia opisane tam zadania
+                                  na swoim serwerze („runner”, czysta
+                                  maszyna z Ubuntu, kasowana po każdym
+                                  uruchomieniu)
+                                                        │
+                                  wynik: ✓ / ✗ przy PR-ze, zakładka Actions,
+                                  strona na GitHub Pages
+```
+
+| plik | kto go czyta | gdzie działa |
+|---|---|---|
+| `.github/workflows/ci.yml` | GitHub Actions | na serwerze GitHuba, przy każdym PR-ze i pushu na `main` |
+| `.github/workflows/deploy.yml` | GitHub Actions | na serwerze GitHuba, po każdym pushu na `main` (czyli po merge'u) |
+| `vite.config.ts` | Vite (narzędzie budujące) | **wszędzie tam, gdzie uruchamiasz Vite**: u ciebie (`npm run dev`, `npm run build`) i w CI |
+| `.node-version` | fnm u ciebie, `setup-node` w CI | u ciebie i na serwerze GitHuba |
+
+Nazwa i miejsce folderu `.github/workflows/` są obowiązkowe: GitHub szuka
+workflowów **tylko** tam. Nazwa samego pliku (`ci.yml`, `deploy.yml`) jest
+dowolna. Kropka na początku `.github` oznacza folder ukryty; w terminalu
+zobaczysz go przez `ls -a`.
+
+> Pliki workflowów da się też utworzyć w przeglądarce (zakładka
+> **Actions** → gotowe szablony). GitHub robi wtedy commit na zdalnym repo,
+> więc lokalnie trzeba potem zrobić `git pull`. Tu zrobiliśmy to lokalnie,
+> żeby wszystko przeszło przez zwykłą drogę: gałąź, PR, review.
+
+### 7.2 Aktualizacja Node i `.node-version`
+
+**Problem:** lokalnie działał Node 18 (systemowy, z `apt`), który nie ma
+już wsparcia, a CI miało używać Node 24. Różne wersje w terminalu i w CI
+to przepis na błędy typu „u mnie działa”.
+
+Na komputerze był już zainstalowany **fnm** (menedżer wersji Node: trzyma
+kilka wersji obok siebie i przełącza między nimi), ale bez ustawionej
+wersji domyślnej, więc wygrywał systemowy Node.
+
+```
+$ fnm list
+* v20.20.1
+* v24.14.0
+* system                       ← to było używane
+
+$ fnm install 24               # najnowsze 24.x
+$ fnm default 24               # domyślna wersja w każdym nowym terminalu
+$ fnm list
+* v20.20.1
+* v24.14.0
+* v24.21.0 default
+* system
+
+$ node --version
+v24.21.0
+```
+
+> Terminal otwarty **przed** tą zmianą dalej pokazuje starą wersję.
+> Otwórz nowy albo wpisz `fnm use 24`.
+
+Plik **`.node-version`** w katalogu projektu zawiera jedną linię:
+
+```
+24
+```
+
+Czytają go dwa narzędzia: fnm (`fnm use` bez numeru wybiera tę wersję) i
+akcja `setup-node` w obu workflowach. Jedno źródło prawdy: zmiana wersji
+Node to zmiana jednego pliku, a nie trzech.
+
+Po zmianie Node warto zainstalować zależności od zera i sprawdzić projekt:
+
+```
+$ rm -rf node_modules
+$ npm ci
+$ npm test
+      Tests  36 passed (36)
+$ npm run build
+✓ built in 166ms
+```
+
+`npm ci` (a nie `npm install`) instaluje **dokładnie** wersje z
+`package-lock.json` i niczego w nim nie zmienia; tego samego polecenia
+używa CI.
+
+> npm 11 wypisze ostrzeżenie `install-scripts` dla `esbuild`. Nowy npm
+> domyślnie nie uruchamia skryptów instalacyjnych pakietów (ochrona przed
+> złośliwymi paczkami). Skrypt esbuilda tylko sprawdza plik binarny, który
+> i tak przychodzi osobnym pakietem, więc build działa bez niego.
+
+### 7.3 `vite.config.ts` - konfiguracja budowania
+
+**Co to jest:** plik konfiguracyjny Vite, narzędzia, które uruchamia
+serwer deweloperski (`npm run dev`) i buduje gotową stronę do folderu
+`dist/` (`npm run build`). Bez tego pliku Vite działa na ustawieniach
+domyślnych; plik zmienia tylko to, co w nim wpisane.
+
+```ts
+import { defineConfig } from 'vite';
+
+export default defineConfig({
+  base: './',
+});
+```
+
+**Po co `base: './'`:** strona na GitHub Pages nie leży w głównym katalogu
+domeny, tylko w podfolderze nazwanym jak repo:
+
+```
+https://robisolutions.github.io/bench-scope/
+                                └── podfolder
+```
+
+Domyślnie Vite wpisuje do zbudowanego `index.html` ścieżki **od korzenia
+domeny**, które w podfolderze prowadzą donikąd:
+
+```html
+<script src="/assets/index-XXXX.js">       ← szuka robisolutions.github.io/assets/... → 404
+```
+
+Z `base: './'` ścieżki są **względne**, czyli liczone od miejsca, gdzie
+leży `index.html`:
+
+```html
+<script src="./assets/index-XXXX.js">      ← robisolutions.github.io/bench-scope/assets/... ✓
+```
+
+Sprawdzenie po buildzie:
+
+```
+$ npm run build
+$ grep -oE '(src|href)="[^"]+"' dist/index.html
+src="./assets/index-BXrx9F8t.js"
+href="./assets/index-DYfk8tk2.css"
+```
+
+Zaleta względnych ścieżek: build działa pod każdym adresem, także po
+zmianie nazwy repo, i nigdzie nie trzeba wpisywać `bench-scope`.
+
+### 7.4 `.github/workflows/ci.yml` - testy przy każdym PR-ze
+
+```yaml
+name: CI                         # nazwa widoczna w zakładce Actions i przy PR-ze
+
+on:                              # KIEDY uruchomić
+  pull_request:                  #   przy każdym PR-ze (i każdym nowym commicie w nim)
+  push:
+    branches: [main]             #   przy każdym pushu na main (np. po merge'u)
+
+jobs:                            # CO uruchomić: lista zadań
+  test:                          # nazwa zadania (przy PR-ze: „CI / test”)
+    runs-on: ubuntu-latest       # na jakiej maszynie: świeży Ubuntu od GitHuba
+    steps:                       # kroki, po kolei; błąd w jednym przerywa resztę
+      - uses: actions/checkout@v7          # pobiera kod repo na maszynę
+      - uses: actions/setup-node@v7        # instaluje Node
+        with:
+          node-version-file: .node-version #   w wersji z pliku .node-version
+          cache: npm                       #   i zapamiętuje pobrane paczki na następny raz
+      - run: npm ci              # instaluje zależności z package-lock.json
+      - run: npm test            # testy; jeden nieudany = czerwony ✗
+      - run: npm run build       # typy + build; błąd typów = czerwony ✗
+```
+
+Dwa rodzaje kroków:
+
+- **`uses:`** to gotowa akcja z innego repo na GitHubie
+  (`actions/checkout` to repo `github.com/actions/checkout`), a `@v7` to
+  jej wersja. Wersje sprawdzono poleceniem
+  `git ls-remote --tags https://github.com/actions/checkout.git`,
+  bo z pamięci łatwo wpisać nieaktualną.
+- **`run:`** to zwykłe polecenie terminala, takie samo jak u ciebie.
+
+Maszyna jest za każdym razem **pusta**: nie ma twojego `node_modules`,
+plików spoza repo ani ustawień z `~/.bashrc`. Jeśli coś działa u ciebie, a
+w CI nie, najczęściej przyczyną jest plik niedodany do commita albo
+zależność od czegoś zainstalowanego tylko lokalnie. To jest główna wartość
+CI: sprawdza projekt tak, jak zobaczy go ktoś inny.
+
+### 7.5 `.github/workflows/deploy.yml` - publikacja po merge'u
+
+```yaml
+name: Deploy
+
+on:
+  push:
+    branches: [main]             # tylko po zmianie na main, nie przy PR-ach
+  workflow_dispatch:             # plus przycisk „Run workflow” w zakładce Actions
+
+permissions:                     # co workflow może zrobić w twoim repo
+  contents: read                 #   czytać kod
+  pages: write                   #   publikować na GitHub Pages
+  id-token: write                #   potwierdzić tożsamość przy publikacji
+
+concurrency:                     # jedna publikacja naraz
+  group: pages
+  cancel-in-progress: false      # nowsza czeka w kolejce, zamiast przerywać bieżącą
+
+jobs:
+  build:                         # zadanie 1: zbuduj stronę
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm ci
+      - run: npm test            # nie publikuj niczego, co nie przechodzi testów
+      - run: npm run build       # wynik ląduje w dist/
+      - uses: actions/configure-pages@v6        # przygotowuje ustawienia Pages
+      - uses: actions/upload-pages-artifact@v5  # pakuje dist/ do wysłania
+        with:
+          path: dist
+
+  deploy:                        # zadanie 2: opublikuj
+    needs: build                 # dopiero gdy build się udał
+    runs-on: ubuntu-latest
+    environment:                 # „środowisko” widoczne w repo jako github-pages,
+      name: github-pages         #   z historią wszystkich publikacji
+      url: ${{ steps.deployment.outputs.page_url }}   # adres strony, pokazany w Actions
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5           # wysyła paczkę na GitHub Pages
+```
+
+**`permissions`:** bez tej sekcji workflow dostaje uprawnienia domyślne z
+ustawień repo (Settings → Actions → General), które dla publikacji na
+Pages nie wystarczą. Gdy sekcja jest, workflow ma **tylko** to, co w niej
+wypisane, a wszystko inne jest zablokowane. Workflow z błędem albo z
+podmienioną akcją może więc zrobić tylko tyle, na ile mu pozwolono.
+
+**Dwa zadania zamiast jednego:** build nie potrzebuje uprawnień do
+publikacji, a publikacja nie potrzebuje kodu. `needs: build` gwarantuje, że
+nieudany build nigdy niczego nie opublikuje.
+
+**`${{ ... }}`:** wyrażenie, które GitHub wylicza w trakcie działania;
+tu podstawia adres strony zwrócony przez krok `deployment`.
+
+### 7.6 Jednorazowe ustawienie Pages (w przeglądarce)
+
+Workflow sam nie włączy GitHub Pages; trzeba to zrobić raz, **przed**
+pierwszym deployem, inaczej zadanie `deploy` zakończy się błędem:
+
+1. Repo na GitHubie → **Settings** → w menu po lewej **Pages**.
+2. **Build and deployment** → **Source:** wybierz **GitHub Actions**
+   (nie *Deploy from a branch*).
+3. Nic więcej nie trzeba zapisywać; ustawienie działa od razu.
+
+*Deploy from a branch* to starszy sposób: GitHub publikuje pliki z
+wybranej gałęzi tak, jak leżą. Tu strona wymaga zbudowania (TypeScript →
+JavaScript), więc publikuje ją workflow.
+
+### 7.7 Commity na gałęzi `ci/deploy`
+
+```
+$ git switch -c ci/deploy
+$ git add vite.config.ts .github/
+$ git commit -m "CI on every pull request, Pages on every merge"
+$ git push -u origin ci/deploy
+
+$ git add .node-version .github/workflows
+$ git commit -m "One Node version for the terminal and for CI"
+$ git push
+```
+
+Uwaga: samo wypchnięcie gałęzi **nie** uruchamia CI, bo `ci.yml` reaguje
+na PR-y i na `main`, a nie na każdą gałąź. Pierwszy przebieg ruszy po
+otwarciu PR-a.
+
+### 7.8 PR, zielony check, merge i pierwsza publikacja ⏳
+
+Do uzupełnienia po przejściu: otwarcie PR-a, przebieg CI widoczny przy
+PR-ze, merge, przebieg Deploy i adres strony.
+
+---
+
 ## Ściąga: codzienny cykl
 
 ```
