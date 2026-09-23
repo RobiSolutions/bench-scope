@@ -44,8 +44,10 @@ npm run build   # type-check, then a static bundle in dist/
 ## Layout
 
 ```
-src/core/      pure logic, no DOM: waveforms, trigger
+src/core/      pure logic, no DOM: waveforms, trigger, sweep, units
 src/core/__tests__/
+src/ui/        the tube (canvas) and the panel's styles
+src/main.ts    front panel state and the sweep loop
 ```
 
 `src/core` must stay free of the DOM. Anything that touches a canvas or an
@@ -67,5 +69,8 @@ One lesson per branch, each merged through a pull request with CI green:
 | `ci/deploy` | Actions: tests on every PR, static build deployed on merge |
 
 Then branch protection on `main`: merge only when CI is green.
+
+Every step taken, command by command, with the output to expect:
+[docs/git-krok-po-kroku.md](docs/git-krok-po-kroku.md) (in Polish).
 
 The repository is public, so Actions minutes are free and unlimited.

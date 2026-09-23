@@ -70,16 +70,21 @@ export function sampleAt(wave: Wave, t: number, index = 0): number {
 /**
  * A block of samples, the way a real scope digitises: a fixed rate, a fixed
  * count, starting at `startTime`.
+ *
+ * `firstIndex` numbers the samples, and the noise is keyed on that number. A
+ * running instrument passes consecutive indices from one capture to the next,
+ * so the noise moves instead of freezing into the same pattern every sweep.
  */
 export function capture(
   wave: Wave,
   sampleRate: number,
   count: number,
-  startTime = 0
+  startTime = 0,
+  firstIndex = 0
 ): Float32Array {
   const out = new Float32Array(count);
   for (let i = 0; i < count; i++) {
-    out[i] = sampleAt(wave, startTime + i / sampleRate, i);
+    out[i] = sampleAt(wave, startTime + i / sampleRate, firstIndex + i);
   }
   return out;
 }
