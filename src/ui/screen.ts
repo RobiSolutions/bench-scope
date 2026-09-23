@@ -65,6 +65,12 @@ export class Screen {
     this.last = sweep;
   }
 
+  /** Single: this sweep alone and sharp, with no trail of the ones before it. */
+  show(sweep: Sweep): void {
+    this.last = sweep;
+    this.redraw();
+  }
+
   /** Stopped: show the last sweep alone, sharp, against the current view. */
   redraw(): void {
     this.trace.clearRect(0, 0, this.width, this.height);

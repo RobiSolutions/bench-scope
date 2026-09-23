@@ -6,6 +6,7 @@
  */
 
 import './ui/style.css';
+import { acquire, type AcquisitionStatus, type TriggerMode } from './core/acquisition';
 import { DEFAULT_WAVE, type Wave, type WaveKind } from './core/waveform';
 import type { Edge } from './core/trigger';
 import { measure, type Measurements } from './core/measure';
@@ -23,6 +24,9 @@ const state = {
   level: 0,
   edge: 'rising' as Edge,
   noiseReject: false,
+  mode: 'auto' as TriggerMode,
+  /** Single armed: stop after the next triggered sweep. */
+  single: false,
   running: true,
 };
 
@@ -137,14 +141,28 @@ $('#noise-reject').addEventListener('click', () => {
   changed();
 });
 
+document.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((button) => {
+  button.addEventListener('click', () => {
+    state.mode = button.dataset.mode as TriggerMode;
+    changed();
+  });
+});
+
+$('#single').addEventListener('click', () => {
+  state.single = true;
+  state.running = true;
+  changed();
+});
+
 $('#run').addEventListener('click', () => {
   state.running = !state.running;
+  state.single = false;
   changed();
 });
 
 // --- display --------------------------------------------------------------
 
-let triggered = false;
+let status: AcquisitionStatus = 'auto';
 
 /** Readings change every frame; a person can read about five a second. */
 const MEASURE_INTERVAL_MS = 200;
@@ -161,14 +179,15 @@ function showMeasurements(m: Measurements): void {
 }
 
 function showStatus(): void {
-  const status = $('#ro-status');
-  const [label, modifier] = !state.running
-    ? ['Stop', 'stop']
-    : triggered
-      ? ["Trig'd", 'trig']
-      : ['Auto', 'auto'];
-  status.textContent = label;
-  status.className = `status status--${modifier}`;
+  const badge = $('#ro-status');
+  const labels: Record<AcquisitionStatus, string> = {
+    trig: "Trig'd",
+    auto: 'Auto',
+    ready: 'Ready',
+  };
+  const [label, modifier] = state.running ? [labels[status], status] : ['Stop', 'stop'];
+  badge.textContent = label;
+  badge.className = `status status--${modifier}`;
 }
 
 /** Brings every control and readout in line with the state. */
@@ -186,6 +205,11 @@ function changed(): void {
   document.querySelectorAll<HTMLButtonElement>('[data-kind]').forEach((button) => {
     button.setAttribute('aria-pressed', String(button.dataset.kind === state.wave.kind));
   });
+
+  document.querySelectorAll<HTMLButtonElement>('[data-mode]').forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.dataset.mode === state.mode));
+  });
+  $('#single').setAttribute('aria-pressed', String(state.single));
 
   const edge = $('#edge');
   edge.textContent = state.edge === 'rising' ? '↑ Rising' : '↓ Falling';
@@ -217,14 +241,25 @@ function frame(now: number): void {
       },
       now / 1000
     );
-    screen.drawTrace(result);
-    if (now - lastMeasured >= MEASURE_INTERVAL_MS) {
-      showMeasurements(measure(result.samples, sampleRateFor(secondsPerDiv())));
-      lastMeasured = now;
+    const acquisition = acquire(state.mode, state.single, result.triggered);
+
+    if (acquisition.draw) {
+      if (acquisition.stop) screen.show(result);
+      else screen.drawTrace(result);
+      if (acquisition.stop || now - lastMeasured >= MEASURE_INTERVAL_MS) {
+        showMeasurements(measure(result.samples, sampleRateFor(secondsPerDiv())));
+        lastMeasured = now;
+      }
     }
-    if (result.triggered !== triggered) {
-      triggered = result.triggered;
+
+    if (acquisition.status !== status) {
+      status = acquisition.status;
       showStatus();
+    }
+    if (acquisition.stop) {
+      state.running = false;
+      state.single = false;
+      changed();
     }
   }
   requestAnimationFrame(frame);
