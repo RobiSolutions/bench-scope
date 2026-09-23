@@ -525,18 +525,97 @@ już nie ma, ale jej commity zostały w historii `main`.
 
 ---
 
-## Krok 6 ⏳ - ta aktualizacja dziennika jako PR #2
+## Krok 6 ✅ - szybka ścieżka: merge z terminala, bez PR-a
 
-Od teraz nic nie trafia bezpośrednio do `main`, nawet dokumentacja:
+Aktualizacja dziennika (krok 5) powstała **po** merge'u PR #1, więc
+potrzebowała własnej drogi do `main`. Zamiast drugiego PR-a scalono ją z
+terminala.
+
+**Kiedy wolno:** drobna zmiana, której nikt nie musi recenzować (tu: sama
+dokumentacja), i brak ochrony gałęzi `main`. Gdy włączymy branch
+protection, ta ścieżka przestanie działać, i o to chodzi.
+
+**Czego się nie ma:** PR-a z numerem, dyskusją i przebiegiem CI dla tej
+zmiany. W historii zostaje tylko sam commit.
+
+### 6.1 Gałąź, commit, push (jak zawsze)
 
 ```
 $ git switch -c docs/journal-first-pr
+Switched to a new branch 'docs/journal-first-pr'
 $ git add docs/git-krok-po-kroku.md
 $ git commit -m "Journal: the first pull request, merge and cleanup"
 $ git push -u origin docs/journal-first-pr
+ * [new branch]      docs/journal-first-pr -> docs/journal-first-pr
 ```
 
-Dalej samodzielnie, według kroku 5: PR, diff, merge, `pull`, sprzątanie.
+### 6.2 Merge do `main` lokalnie
+
+```
+$ git switch main
+Switched to branch 'main'
+Your branch is up to date with 'origin/main'.
+
+$ git merge --ff-only docs/journal-first-pr
+Updating 83be2a2..eed7179
+Fast-forward
+ docs/git-krok-po-kroku.md | 138 +++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 124 insertions(+), 14 deletions(-)
+```
+
+`--ff-only` to bezpiecznik: Git scali tylko wtedy, gdy wystarczy
+przesunąć etykietę `main` do przodu (fast-forward). Jeśli w międzyczasie
+na `main` pojawiło się coś, czego gałąź nie ma, Git odmówi zamiast po
+cichu tworzyć commit merge. Wtedy najpierw `git pull`, potem ponownie.
+
+### 6.3 Wypchnij `main`
+
+```
+$ git push
+To github.com:RobiSolutions/bench-scope.git
+   83be2a2..eed7179  main -> main
+```
+
+`83be2a2..eed7179` znaczy: `main` na GitHubie przesunął się z tego commita
+na ten.
+
+### 6.4 Sprzątanie, tym razem wszystko z terminala
+
+```
+$ git branch -d docs/journal-first-pr
+Deleted branch docs/journal-first-pr (was eed7179).
+
+$ git push origin --delete docs/journal-first-pr
+To github.com:RobiSolutions/bench-scope.git
+ - [deleted]         docs/journal-first-pr
+```
+
+Usunięcie gałęzi zdalnym pushem od razu usuwa też lokalną etykietę
+`origin/docs/journal-first-pr`, więc `fetch --prune` nie jest potrzebny.
+
+### 6.5 Sprawdzenie
+
+```
+$ git log --oneline --graph --all --decorate
+* eed7179 (HEAD -> main, origin/main) Journal: the first pull request, merge and cleanup
+*   83be2a2 Merge pull request #1 from RobiSolutions/feat/instrument
+|\
+| * df36d63 Journal: the repository on GitHub and the first push
+| * ec50bdc A step-by-step git journal, in Polish
+| * fe07108 The instrument: a screen that holds a trace still
+|/
+* 76ed258 The core before the pixels: waveforms and a trigger that holds still
+```
+
+Widać różnicę między dwiema ścieżkami: PR #1 zostawił commit merge i
+„bąbel” gałęzi, a fast-forward to po prostu kolejny commit na prostej
+linii.
+
+### 6.6 Ten opis
+
+Opis kroku 6 nie mógł powstać przed samym krokiem, więc trafił do `main`
+osobnym commitem, bezpośrednio (`git commit` na `main`, potem `git push`).
+To ta sama szybka ścieżka, tylko bez gałęzi.
 
 ---
 
